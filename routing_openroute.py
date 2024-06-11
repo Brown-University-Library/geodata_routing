@@ -9,7 +9,7 @@ Using https://openrouteservice.org/ and https://pypi.org/project/openrouteservic
 Basic examples: https://openrouteservice-py.readthedocs.io/en/latest/
 
 Frank Donnelly / Head GIS and Data Services / Brown University Library
-May 31, 2024 | Revised June 10, 2024
+May 31, 2024 | Revised June 11, 2024
 """
 
 import openrouteservice, os, csv, pandas as pd, geopandas as gpd
@@ -17,6 +17,7 @@ from shapely.geometry import shape
 from openrouteservice.directions import directions
 from openrouteservice import convert
 from datetime import date
+from time import sleep
 
 # VARIABLES
 # general description, used in output file
@@ -104,6 +105,9 @@ for ogn in origins[1:]:
             route=[ogn[ogn_id],ogn[ogn_name],d[d_id],d[d_name],dist,travtime,wkt_geom]
             route_list.append(route)
             route_count=route_count+1
+            if route_count%40==0: # API limit is 40 requests per minute
+                print('Pausing 1 minute, processed',route_count,'records...')
+                sleep(60)
         except Exception as e:
             print(str(e))
             
