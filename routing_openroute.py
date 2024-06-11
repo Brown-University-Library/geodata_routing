@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 Calculate routes and distances from origins and destinations stored 
-in separate CSV files with coordinates, and generate a shapefile 
-and basic plot
+in separate CSV files with coordinates, and generate shapefiles 
+and basic plot. CSV must contain a header row, with attributes that
+include a unique id, name, longitude, and latitude in WGS 84
 
 Using https://openrouteservice.org/ and https://pypi.org/project/openrouteservice/
 Basic examples: https://openrouteservice-py.readthedocs.io/en/latest/
 
 Frank Donnelly / Head GIS and Data Services / Brown University Library
-May 31, 2024
+May 31, 2024 | Revised June 10, 2024
 """
 
 import openrouteservice, os, csv, pandas as pd, geopandas as gpd
@@ -43,18 +44,35 @@ d_lat=3
 today=str(date.today()).replace('-','_')
 
 keyfile='ors_key.txt'
-origin_file=os.path.join('input','origins.csv')
-dest_file=os.path.join('input','destinations.csv')
+origin_file=os.path.join('input','origins.csv') #CSV must have header row
+dest_file=os.path.join('input','destinations.csv') #CSV must have header row
 route_file=routename+'_'+tmode+'_'+rpref+'_'+today+'.shp'
 out_file=os.path.join('output',route_file)
+out_origin=os.path.join('output',os.path.basename(origin_file).split('.')[0]+'_'+today+'.shp')
+out_dest=os.path.join('output',os.path.basename(dest_file).split('.')[0]+'_'+today+'.shp')
 
-# Function for reading origin and dest files
+# For reading origin and dest files
 def file_reader(infile,outlist):
     with open(infile,'r') as f:
         reader = csv.reader(f)    
         for row in reader:
             rec = [i.strip() for i in row]
             outlist.append(rec)
+            
+# For converting origins and destinations to geodataframes            
+def coords_to_gdf(data_list,long,lat,export):
+    """Provide: list of places that includes a header row,
+    positions in list that have longitude and latitude, and
+    path for output file.
+    """
+    df = pd.DataFrame(data_list[1:], columns=data_list[0])
+    longcol=data_list[0][long]
+    latcol=data_list[0][lat]
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[longcol], df[latcol]), crs='EPSG:4326')
+    gdf.to_file(export,index=True)
+    print('Wrote shapefile',export,'\n')
+    return(gdf)
+      
 origins=[]
 dest=[]
 file_reader(origin_file,origins)
@@ -92,11 +110,18 @@ for ogn in origins[1:]:
 api_key=''
 print('Plotted',route_count,'routes...' )
 
+# Create shapefiles for routes
 df = pd.DataFrame(route_list, columns=header)
 gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df["route"]),crs = 'EPSG:4326')
 gdf.drop(['route'],axis=1,inplace=True) # drop the wkt text
 gdf.to_file(out_file,index=True)
+print('Wrote route shapefile to:',out_file,'\n')
 
-gdf.plot(column="dest_id", kind='geo',cmap="Set1")
+# Create shapefiles for origins and destinations
+ogdf=coords_to_gdf(origins,ogn_long,ogn_lat,out_origin)
+dgdf=coords_to_gdf(dest,d_long,d_lat,out_dest)
 
-print('Done, wrote shapefile to:',out_file)
+# Plot
+base=gdf.plot(column="dest_id", kind='geo',cmap="Set1")
+ogdf.plot(ax=base, marker='o',color='black')
+dgdf.plot(ax=base, marker='x', color='red');
